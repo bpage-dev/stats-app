@@ -1,0 +1,9 @@
+# Code owners for stats-app
+# Combined with the branch protection rule "Require review from Code Owners",
+# this makes @bpage-dev's approval required on PRs into protected branches.
+#
+# Syntax: <path pattern>  <owner(s)>
+# Patterns are matched bottom-to-top; the last matching line wins.
+
+# Default owner for everything in the repo
+*  @bpage-dev
