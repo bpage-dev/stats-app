@@ -40,12 +40,13 @@ export default function SkillBoardScreen() {
   const load = useCallback(async () => {
     setError(null);
 
-    // Queue any scheduled sessions that came due while the app was closed.
+    // Hard-delete any skills whose grace period elapsed, then queue due sessions.
+    await supabase.rpc('purge_expired_skills');
     const { data: pendingCount } = await supabase.rpc('sync_due_sessions');
     setPending((pendingCount as number) ?? 0);
 
     const [skillsRes, progressRes, ranksRes, thresholdsRes] = await Promise.all([
-      supabase.from('skills').select('id, name, icon, xp_template_id').order('created_at'),
+      supabase.from('skills').select('id, name, icon, xp_template_id').is('delete_after', null).order('created_at'),
       supabase.from('user_skill_progress').select('skill_id, current_xp, current_rank_id'),
       supabase.from('ranks').select('id, label, skill_id'),
       supabase.from('level_thresholds').select('xp_template_id, level_number, xp_required'),

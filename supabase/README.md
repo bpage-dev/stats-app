@@ -32,6 +32,21 @@ then paste and run each file **in order**:
 10. `migrations/010_session_rpcs.sql` — `sync_due_sessions()` (queue pending rows
     on app open, no XP), `claim_sessions(ids)` (award XP + recompute level, or all
     pending if null), `skip_session(id)`. Drops the old `run_due_schedules`.
+11. `migrations/011_skill_sharing.sql` — `skills.source_skill_id` lineage column +
+    `clone_skill(source)` RPC that copies a public skill (with ranks + activities)
+    to the caller as their own private skill. Sharing itself is just `is_public`.
+12. `migrations/012_lock_skill_structure.sql` — freezes skill structure. Makes
+    `create_skill`/`clone_skill` SECURITY DEFINER and revokes direct write access
+    to `activities`/`ranks` (and all but the `is_public` column of `skills`). After
+    this, a skill's activities & ranks are immutable; only the share toggle and a
+    whole-skill delete remain. Must run after 011.
+13. `migrations/013_skill_deletion.sql` — soft delete with a 7-day grace period:
+    `skills.delete_after` column + `request_skill_deletion` / `cancel_skill_deletion`
+    / `purge_expired_skills` RPCs. Pending skills hide from the board; purge runs
+    lazily on app open.
+14. `migrations/014_download_counts.sql` — `skill_download_counts(ids)` SECURITY
+    DEFINER RPC that counts clones per source skill across all users (RLS would
+    otherwise hide other people's private clones).
 
 `001` and `002` are **additive-idempotent** — re-running them is safe and inserts
 only what's missing (they never update existing rows or duplicate data). `003`
