@@ -74,6 +74,39 @@ function RootNavigator() {
             contentStyle: { backgroundColor: colors.bg },
           }}
         />
+        <Stack.Screen
+          name="character/browse"
+          options={{
+            headerShown: true,
+            title: 'Browse skills',
+            headerStyle: { backgroundColor: colors.bg },
+            headerTintColor: colors.textPrimary,
+            headerShadowVisible: false,
+            contentStyle: { backgroundColor: colors.bg },
+          }}
+        />
+        <Stack.Screen
+          name="character/settings"
+          options={{
+            headerShown: true,
+            title: 'Settings',
+            headerStyle: { backgroundColor: colors.bg },
+            headerTintColor: colors.textPrimary,
+            headerShadowVisible: false,
+            contentStyle: { backgroundColor: colors.bg },
+          }}
+        />
+        <Stack.Screen
+          name="character/deleted"
+          options={{
+            headerShown: true,
+            title: 'Recently deleted',
+            headerStyle: { backgroundColor: colors.bg },
+            headerTintColor: colors.textPrimary,
+            headerShadowVisible: false,
+            contentStyle: { backgroundColor: colors.bg },
+          }}
+        />
       </Stack.Protected>
 
       <Stack.Protected guard={!session}>

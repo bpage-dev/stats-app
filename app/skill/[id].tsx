@@ -6,11 +6,13 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from 'react-native';
-import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import { useSession } from '../../lib/auth';
 import { getLevelInfo, MAX_LEVEL, type Threshold } from '../../lib/progress';
 import { colors, formatInt, radius } from '../../lib/theme';
 import { SkillIcon } from '../../components/SkillIcon';
@@ -38,6 +40,9 @@ type Detail = {
   xpForLevel: number;
   isMax: boolean;
   rankLabel: string | null;
+  ownerId: string | null;
+  isPublic: boolean;
+  deleteAfter: string | null;
   activities: Activity[];
   ranks: Rank[];
   recent: LogRow[];
@@ -45,6 +50,8 @@ type Detail = {
 
 export default function SkillDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+  const { session } = useSession();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -54,7 +61,7 @@ export default function SkillDetailScreen() {
   const load = useCallback(async () => {
     const { data: skill } = await supabase
       .from('skills')
-      .select('id, name, icon, description, xp_template_id')
+      .select('id, name, icon, description, xp_template_id, user_id, is_public, delete_after')
       .eq('id', id)
       .maybeSingle();
 
@@ -116,6 +123,9 @@ export default function SkillDetailScreen() {
       xpForLevel: info.xpForLevel,
       isMax: info.isMax,
       rankLabel: currentRankId ? ranks.find((r) => r.id === currentRankId)?.label ?? null : null,
+      ownerId: skill.user_id,
+      isPublic: skill.is_public,
+      deleteAfter: skill.delete_after,
       activities,
       ranks,
       recent,
@@ -183,6 +193,45 @@ export default function SkillDetailScreen() {
     }
   }
 
+  async function toggleShare(next: boolean) {
+    if (!detail) return;
+    setDetail({ ...detail, isPublic: next }); // optimistic
+    const { error } = await supabase.from('skills').update({ is_public: next }).eq('id', id);
+    if (error) {
+      setDetail({ ...detail, isPublic: !next });
+      Alert.alert('Could not update sharing', error.message);
+    }
+  }
+
+  function confirmRemove() {
+    Alert.alert(
+      'Remove skill',
+      `"${detail?.name}" will be deleted in 7 days. You can restore it from Character → Recently deleted until then.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: removeSkill },
+      ],
+    );
+  }
+
+  async function removeSkill() {
+    const { error } = await supabase.rpc('request_skill_deletion', { p_skill_id: id });
+    if (error) {
+      Alert.alert('Could not remove', error.message);
+      return;
+    }
+    router.back();
+  }
+
+  async function restoreSkill() {
+    const { error } = await supabase.rpc('cancel_skill_deletion', { p_skill_id: id });
+    if (error) {
+      Alert.alert('Could not restore', error.message);
+      return;
+    }
+    await load();
+  }
+
   if (loading) {
     return (
       <View style={[styles.screen, styles.center]}>
@@ -233,6 +282,21 @@ export default function SkillDetailScreen() {
           ? `Max level · ${formatInt(detail.xp)} xp total`
           : `${formatInt(detail.xpIntoLevel)} / ${formatInt(detail.xpForLevel)} xp to level ${detail.level + 1}`}
       </Text>
+
+      {detail.ownerId && detail.ownerId === session?.user.id && (
+        <View style={styles.shareRow}>
+          <View style={styles.flex}>
+            <Text style={styles.shareLabel}>Share publicly</Text>
+            <Text style={styles.shareSub}>Let others find and add this skill.</Text>
+          </View>
+          <Switch
+            value={detail.isPublic}
+            onValueChange={toggleShare}
+            trackColor={{ true: colors.gold, false: colors.track }}
+            thumbColor={colors.textPrimary}
+          />
+        </View>
+      )}
 
       <Text style={styles.sectionTitle}>Activities</Text>
       {detail.activities.map((a) => (
@@ -300,8 +364,30 @@ export default function SkillDetailScreen() {
           </View>
         ))
       )}
+
+      {detail.ownerId && detail.ownerId === session?.user.id ? (
+        detail.deleteAfter ? (
+          <View style={styles.deletePending}>
+            <Text style={styles.deletePendingText}>
+              Scheduled for deletion in {daysLeft(detail.deleteAfter)}.
+            </Text>
+            <Pressable style={styles.restoreButton} onPress={restoreSkill}>
+              <Text style={styles.restoreText}>Restore</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable style={styles.removeButton} onPress={confirmRemove}>
+            <Text style={styles.removeText}>Remove skill</Text>
+          </Pressable>
+        )
+      ) : null}
     </ScrollView>
   );
+}
+
+function daysLeft(iso: string): string {
+  const days = Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000));
+  return `${days} ${days === 1 ? 'day' : 'days'}`;
 }
 
 function timeAgo(iso: string): string {
@@ -339,6 +425,20 @@ const styles = StyleSheet.create({
   track: { height: 8, borderRadius: 4, backgroundColor: colors.track, overflow: 'hidden' },
   fill: { height: '100%', backgroundColor: colors.gold, borderRadius: 4 },
   xpLabel: { fontSize: 12, color: colors.textSecondary, marginTop: 8 },
+
+  shareRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    padding: 14,
+    marginTop: 20,
+  },
+  shareLabel: { fontSize: 14, fontWeight: '700', color: colors.textPrimary },
+  shareSub: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
 
   sectionTitle: {
     fontSize: 13,
@@ -402,4 +502,31 @@ const styles = StyleSheet.create({
   recentName: { flex: 1, fontSize: 14, color: colors.textPrimary },
   recentTime: { fontSize: 12, color: colors.textMuted },
   recentXp: { fontSize: 13, fontWeight: '700', color: colors.gold, minWidth: 40, textAlign: 'right' },
+
+  removeButton: {
+    marginTop: 32,
+    borderColor: colors.danger,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.sm,
+    paddingVertical: 13,
+    alignItems: 'center',
+  },
+  removeText: { color: colors.danger, fontSize: 15, fontWeight: '700' },
+  deletePending: {
+    marginTop: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderRadius: radius.md,
+    padding: 14,
+  },
+  deletePendingText: { flex: 1, color: colors.danger, fontSize: 13, fontWeight: '600' },
+  restoreButton: {
+    backgroundColor: colors.gold,
+    borderRadius: radius.sm,
+    paddingVertical: 9,
+    paddingHorizontal: 18,
+  },
+  restoreText: { color: colors.bg, fontWeight: '700', fontSize: 13 },
 });

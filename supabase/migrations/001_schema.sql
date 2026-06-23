@@ -59,6 +59,7 @@ create table if not exists skills (
   description     text,
   xp_template_id  uuid not null references xp_templates (id),
   is_public       boolean not null default false,
+  source_skill_id uuid references skills (id) on delete set null,  -- lineage of a cloned skill
   created_at      timestamptz not null default now()
 );
 
@@ -119,6 +120,7 @@ create table if not exists milestone_log (
 -- Index names match Postgres's default auto-naming so "if not exists" dedupes
 -- against indexes created by the original (pre-idempotent) 001.
 create index if not exists skills_user_id_idx                  on skills (user_id);
+create index if not exists skills_source_skill_id_idx          on skills (source_skill_id);
 create index if not exists ranks_skill_id_idx                  on ranks (skill_id);
 create index if not exists activities_skill_id_idx             on activities (skill_id);
 create index if not exists user_skill_progress_user_id_idx     on user_skill_progress (user_id);

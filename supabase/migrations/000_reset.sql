@@ -9,10 +9,15 @@
 drop function if exists log_activity(uuid, text);
 drop function if exists log_milestone(uuid, text);
 drop function if exists create_skill(text, text, text, text, jsonb, jsonb);
+drop function if exists clone_skill(uuid);
 drop function if exists run_due_schedules();
 drop function if exists sync_due_sessions();
 drop function if exists claim_sessions(uuid[]);
 drop function if exists skip_session(uuid);
+drop function if exists request_skill_deletion(uuid);
+drop function if exists cancel_skill_deletion(uuid);
+drop function if exists purge_expired_skills();
+drop function if exists skill_download_counts(uuid[]);
 
 -- cascade also removes each table's policies, indexes, and foreign keys.
 drop table if exists scheduled_sessions   cascade;
